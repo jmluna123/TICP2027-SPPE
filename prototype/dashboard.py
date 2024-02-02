@@ -36,8 +36,26 @@ def create_model_lstm_hour2day():
 model = create_model_lstm_hour2day()
 model.load_weights(checkpoint__hour2day_path)
 
-def predict():
+w_train_mean = pd.Series({'Temperature':26.87, 'Humidity': 80.77, 'WindDir': 187.82,'WindSpe': 1.13})
+w_train_std = pd.Series({'Temperature':2.51, 'Humidity': 10.01, 'WindDir': 49.13,'WindSpe': 0.572})
     
+features = ['Temperature','Humidity','WindDir','WindSpe']
+    
+def predict(df, model):
+    dataset_weather = []
+    dates = pd.unique(df['date'])
+
+    df[features] = (df[features] - w_train_mean) / w_train_std
+    tmp_dataset = df[['Temperature','Humidity','WindDir','WindSpe']].values
+    
+    for i in range(0, len(df), 12):
+        tmp = tmp_dataset[i: i+12]
+        dataset_weather.append(tmp)
+        
+    w_dataset_x = np.array(dataset_weather)
+    pred = model.predict(w_dataset_x)
+    
+    return pd.DataFrame({'date': dates, 'generacionDiaria': pred[0]})
 
 #------DashBoard-------------
 st.set_page_config(page_title="RENO predicciones", page_icon=":chart:", layout="wide")
@@ -59,8 +77,7 @@ last_date = pd.to_datetime(weather_data["date"]).max()
 energy_data = pd.read_csv("reno_energiadiaria.csv")
 energy_data["date"] = pd.to_datetime(energy_data["fechaDay"])
 
-pred_data = pd.read_csv("preds.csv")
-pred_data["date"] = pd.to_datetime(pred_data["fechaDay"])
+pred_data = predict(weather_data, model)
 
 col1,col2 = st.columns((2))
 
@@ -80,7 +97,7 @@ else:
 
 pred_date = date + datetime.timedelta(days=1)
 
-pred_val = pred_data[pred_data['date'] == pred_date]['generacionDiaria'].values[0]
+pred_val = pred_data[pred_data['date'] == date]['generacionDiaria'].values[0]
 org_val = energy_data[energy_data['date'] == pred_date]['generacionDiaria'].values[0]
 
 col1,col2 = st.columns((2))
@@ -95,6 +112,3 @@ with col2:
 st.subheader("Mediciones")
 fig = px.line(df2, x="time", y="Value", color='Measurements')
 st.plotly_chart(fig, use_container_width=True)
-
-
-
